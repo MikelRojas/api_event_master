@@ -1,7 +1,9 @@
 from flask import Flask, jsonify, request
 from neon import sign_in, create_client, create_supplier, create_event, create_contracted_service, update_contracted_service
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 # Ruta de bienvenida
 @app.route('/', methods=['GET'])
@@ -66,4 +68,5 @@ def update_new_contracted_service():
 
 # Ejecutar la aplicación
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
