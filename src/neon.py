@@ -118,15 +118,22 @@ def create_event(email_user: str, date_event: str, details: str, start_time: str
 
         # Obtiene el ID del evento recién creado
         event_id = cur.fetchone()[0]
-        conn.commit()
+        conn.commit()  # Asegúrate de hacer commit para guardar los cambios
 
         # Cierra el cursor y devuelve la conexión al pool
         cur.close()
-        connection_pool.putconn(conn)
-        connection_pool.closeall()
-        
+        connection_pool.putconn(conn)  # Devuelve la conexión al pool
+
         return jsonify({"data": {"event_id": event_id}, "state": True}), 201
     
+    except OperationalError as db_error:
+        print(f"Database error: {db_error}")
+        return jsonify({"data": "Database Error", "state": False}), 500
+    
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"data": "Insertion Failed", "state": False}), 400
+
     except OperationalError as db_error:
         print(f"Database error: {db_error}")
         return jsonify({"data": "Database Error", "state": False}), 500
@@ -211,3 +218,57 @@ def update_contracted_service(id_event: int, email_supplier: str, new_state: boo
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({"data": "Update Failed", "state": False}), 400
+    
+def suppliers():
+    try:
+        load_dotenv()
+
+        # Get the connection string from the environment variable
+        connection_string = os.getenv('DATABASE_URL')
+
+        # Create a connection pool
+        connection_pool = pool.SimpleConnectionPool(1, 10, connection_string)
+        conn = connection_pool.getconn()
+        cur = conn.cursor()
+
+        # Execute the query
+        cur.execute("""
+        SELECT 
+            s.email,
+            u.name,
+            s.description,
+            s.url_image,
+            s.type
+        FROM supplier s 
+            JOIN 
+            users u ON u.email = s.email;
+        """)
+        
+        # Fetch all results
+        rows = cur.fetchall()
+        
+        # Create a list of supplier dictionaries
+        suppliers_list = []
+        for row in rows:
+            suppliers_list.append({
+                "email": row[0],
+                "name": row[1],
+                "description": row[2],
+                "url_image": row[3],
+                "type": row[4]
+            })
+
+        # Close the cursor and connection
+        cur.close()
+        connection_pool.putconn(conn)
+        connection_pool.closeall()
+        
+        return jsonify({"data": suppliers_list, "state": True}), 200
+
+    except OperationalError as db_error:
+        print(f"Database error: {db_error}")
+        return jsonify({"data": "Database Error", "state": False}), 500
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"data": None, "state": False}), 400

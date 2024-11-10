@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from neon import sign_in, create_client, create_supplier, create_event, create_contracted_service, update_contracted_service
+from neon import sign_in, suppliers, create_client, create_supplier, create_event, create_contracted_service, update_contracted_service
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -15,6 +15,10 @@ def home():
 def get_user():
     email = request.args.get('email')
     return sign_in(email)
+
+@app.route('/getsuppliers', methods=['GET'])
+def get_suppliers():
+    return suppliers()
 
 @app.route('/create_client', methods=['POST'])
 def create_new_user():
