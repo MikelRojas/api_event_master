@@ -272,3 +272,62 @@ def suppliers():
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({"data": None, "state": False}), 400
+    
+def get_user_events(email_user:str):
+    if not email_user:
+        return jsonify({"data": "Email del usuario es requerido", "state": False}), 400
+    
+    try:
+        load_dotenv()
+        connection_string = os.getenv('DATABASE_URL')
+        connection_pool = pool.SimpleConnectionPool(1, 10, connection_string)
+        conn = connection_pool.getconn()
+        cur = conn.cursor()
+        
+        # Consulta SQL para obtener eventos y proveedores
+        cur.execute(f"""
+            SELECT e.id, e.email_user, e.details AS type, e.date_event AS date, 
+                   e.start_time, e.end_time, e.ubication,
+                   cs.email_supplier, cs.state
+            FROM events e
+            LEFT JOIN contracted_service cs ON e.id = cs.id_event
+            WHERE e.email_user = '{email_user}';
+        """)
+        
+        # Procesa los resultados y organiza la estructura de datos
+        events_dict = {}
+        for row in cur.fetchall():
+            event_id = row[0]
+            if event_id not in events_dict:
+                events_dict[event_id] = {
+                    "id": str(event_id),
+                    "email_user": row[1],
+                    "type": row[2],
+                    "date": row[3],
+                    "start_time": row[4].isoformat(),
+                    "end_time": row[5].isoformat(),
+                    "ubication": row[6],
+                    "suppliers": []
+                }
+            # Agrega los proveedores a cada evento
+            events_dict[event_id]["suppliers"].append({
+                "email_supplier": row[7],
+                "state": row[8]
+            })
+        
+        # Convierte el diccionario a una lista para devolverlo en JSON
+        events_list = list(events_dict.values())
+
+        # Cierra el cursor y la conexión
+        cur.close()
+        connection_pool.putconn(conn)
+        
+        return jsonify({"data": events_list, "state": True}), 200
+
+    except OperationalError as db_error:
+        print(f"Database error: {db_error}")
+        return jsonify({"data": "Database Error", "state": False}), 500
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"data": None, "state": False}), 400
