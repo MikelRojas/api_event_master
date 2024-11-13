@@ -33,6 +33,48 @@ def sign_in(email:str):
         print(f"Error occurred: {e}")
         return jsonify({"data":None,"state":False}), 400
     
+def sign_in_supplier(email:str):
+    try:
+        load_dotenv()
+
+        # Get the connection string from the environment variable
+        connection_string = os.getenv('DATABASE_URL')
+
+        # Create a connection pool
+        connection_pool = pool.SimpleConnectionPool(1, 10, connection_string)
+        conn = connection_pool.getconn()
+        cur = conn.cursor()
+
+        cur.execute(f"""
+        SELECT 
+            u.name,
+            u.email,
+            u.password,
+            s.description,
+            s.type,
+            s.url_image
+        FROM users u
+          INNER JOIN 
+            supplier s ON s.email = u.email
+        WHERE u.email = '{email}';
+        """)
+        data_users = cur.fetchone()
+
+        # Close the cursor and connection
+        cur.close()
+        connection_pool.putconn(conn)
+        connection_pool.closeall()
+        
+        return jsonify({"data":{"name":data_users[0],"email":data_users[1],"password":data_users[2],"description":data_users[3],"type":data_users[4],"url_image":data_users[5]},"state":True}), 200
+    
+    except OperationalError as db_error:
+        print(f"Database error: {db_error}")
+        return jsonify({"data": "Database Error", "state": False}), 500
+    
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"data":None,"state":False}), 400
+    
 def create_client(email:str,name:str,password:str):
     try:
         load_dotenv()
@@ -319,6 +361,62 @@ def get_user_events(email_user:str):
         events_list = list(events_dict.values())
 
         # Cierra el cursor y la conexión
+        cur.close()
+        connection_pool.putconn(conn)
+        
+        return jsonify({"data": events_list, "state": True}), 200
+
+    except OperationalError as db_error:
+        print(f"Database error: {db_error}")
+        return jsonify({"data": "Database Error", "state": False}), 500
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({"data": None, "state": False}), 400
+    
+def get_supplier_events(email_user: str):
+    if not email_user:
+        return jsonify({"data": "Email del usuario es requerido", "state": False}), 400
+    
+    try:
+        load_dotenv()
+        connection_string = os.getenv('DATABASE_URL')
+        connection_pool = pool.SimpleConnectionPool(1, 10, connection_string)
+        conn = connection_pool.getconn()
+        cur = conn.cursor()
+        
+        # Consulta SQL para obtener eventos y proveedores
+        cur.execute("""
+            SELECT 
+                e.id, 
+                e.email_user, 
+                e.details AS type, 
+                e.date_event AS date, 
+                e.start_time, 
+                e.end_time, 
+                e.ubication,
+                cs.email_supplier,
+                cs.state
+            FROM contracted_service cs
+            LEFT JOIN events e ON e.id = cs.id_event
+            WHERE cs.email_supplier = %s;
+        """, (email_user,))
+        
+        # Procesar resultados y construir la lista de eventos
+        events_list = []
+        for row in cur.fetchall():
+            event = {
+                "id": row[0],
+                "email_user": row[1],
+                "type": row[2],
+                "date": row[3].strftime("%Y-%m-%d"),  # Formatear fecha
+                "start_time": row[4].strftime("%H:%M:%S"),  # Formatear hora de inicio
+                "end_time": row[5].strftime("%H:%M:%S"),    # Formatear hora de fin
+                "ubication": row[6],
+                "state": row[8]
+            }
+            events_list.append(event)
+        
         cur.close()
         connection_pool.putconn(conn)
         
